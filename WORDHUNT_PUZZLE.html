@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Word Hunt Puzzle Game — Fetch Questions</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; background: linear-gradient(135deg,#1e3c72,#2a5298); color:#fff; margin:0; padding:0; }
+  .container { max-width:1200px; margin:auto; padding:15px; }
+  h1,h2,h3 { text-align:center; margin-top:0; }
+  h1 { letter-spacing:2px; }
+  .panel { background:rgba(0,0,0,0.35); border-radius:10px; padding:15px; margin-bottom:15px; }
+  .flex { display:flex; gap:15px; flex-wrap:wrap; }
+  .flex > .panel { flex:1 1 280px; }
+  label { font-size:14px; }
+  input, select { padding:6px 8px; border-radius:5px; border:none; margin:3px 0 8px; }
+  input[type="text"] { width:100%; }
+  button { padding:8px 14px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; margin:4px 4px 4px 0; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  #startBtn { background:#00c6ff; }
+  #newGameBtn { background:#ffa726; }
+  #guessBtn { background:#00e676; }
+  #nextClueBtn { background:#ab47bc; }
+  #resetBoardBtn { background:#ef5350; }
+  #grid { border-collapse: collapse; margin:auto; }
+  #grid td { width:30px; height:30px; text-align:center; border:1px solid #aaa; font-weight:bold; font-size:18px; }
+  #questionBox, #clueBox { background:rgba(0,0,0,0.4); border-radius:8px; padding:8px 10px; margin-bottom:8px; font-size:14px; white-space:pre-line; }
+  #msg { min-height:22px; font-weight:bold; }
+  #gameOver { display:none; text-align:center; animation:fadeInUp .6s ease-out; }
+  #resultCard { display:inline-block; padding:12px 16px; border-radius:10px; margin-bottom:10px; text-align:left; max-width:520px; white-space:pre-line; box-shadow:0 0 15px rgba(0,0,0,0.5); }
+  .result-win { background:#2ecc71; color:#000; }
+  .result-lose { background:#e74c3c; }
+  .result-exit { background:#f1c40f; color:#000; }
+  #thankYou { font-size:24px; font-weight:bold; animation:pulse 1.2s infinite; }
+  @keyframes pulse { 0% {opacity:0.6; transform:scale(1);} 50% {opacity:1; transform:scale(1.05);} 100% {opacity:0.6; transform:scale(1);} }
+  @keyframes fadeInUp { from {opacity:0; transform:translateY(20px);} to {opacity:1; transform:translateY(0);} }
+  #leaderboardList { max-height:260px; overflow-y:auto; font-size:13px; }
+  .lb-item { background:rgba(0,0,0,0.35); border-radius:8px; padding:6px 8px; margin-bottom:5px; }
+  .lb-header { font-weight:bold; margin-bottom:4px; }
+  .small { font-size:12px; opacity:0.8; }
+  @media (max-width:768px) { .flex { flex-direction:column; } #grid td { width:26px; height:26px; font-size:16px; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>WORD HUNT PUZZLE — Fetch Questions</h1>
+  <h3>Questions from server • Clue revealed after 3 fails • Per-player different sets</h3>
+
+  <div class="panel">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <div style="flex:1 1 180px;">
+        <label for="playerName">Player Name:</label><br>
+        <input type="text" id="playerName" placeholder="Enter your name (optional)">
+      </div>
+      <div>
+        <label for="difficulty">Difficulty:</label><br>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      <div>
+        <button id="startBtn">Start Game (fetch questions)</button>
+        <button id="newGameBtn">New Game</button>
+      </div>
+      <div style="margin-left:auto; text-align:right;">
+        <div><b>Attempts:</b> <span id="attempts">-</span></div>
+        <div><b>Time:</b> <span id="timer">00:00</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex">
+    <div class="panel">
+      <h2>Grid</h2>
+      <table id="grid"></table>
+    </div>
+
+    <div class="panel">
+      <h2>Question & Clue</h2>
+      <div id="questionBox"><b>Question:</b> <span id="questionText">Press "Start Game" to fetch questions from server.</span></div>
+      <div id="clueBox" style="display:none"><b>Clue:</b> <span id="clueText"></span></div>
+      <button id="nextClueBtn" disabled>Next Question</button>
+
+      <hr>
+      <label for="guessInput">Enter a word:</label><br>
+      <input type="text" id="guessInput" placeholder="type a word" disabled>
+      <button id="guessBtn" disabled>Guess</button>
+      <p id="msg"></p>
+
+      <hr>
+      <h3>Progress</h3>
+      <ul id="progressList" style="list-style:none;padding-left:0;font-size:14px;"></ul>
+    </div>
+
+    <div class="panel">
+      <h2>Leaderboard</h2>
+      <p class="small">Sorted by highest score, then fastest time. Stored on this browser.</p>
+      <button id="resetBoardBtn">Reset Leaderboard</button>
+      <div id="leaderboardList"></div>
+    </div>
+  </div>
+
+  <div id="gameOver" class="panel">
+    <div id="resultCard">
+      <h2 id="resultTitle"></h2>
+      <p id="resultText"></p>
+    </div>
+    <div id="thankYou">Thank you for playing!</div>
+  </div>
+
+  <p class="small" style="text-align:center;margin-top:10px;">Save this file as <code>word_hunt_fetch.html</code> and open in any browser. The script will try to fetch questions from a remote endpoint; if that fails, it falls back to built-in questions.</p>
+</div>
+
+<script>
+/* ---------- SOUND ---------- */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq,dur){ const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.frequency.value=freq; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.2,audioCtx.currentTime); o.start(); setTimeout(()=>o.stop(),dur);} 
+const soundCorrect=()=>beep(800,150), soundWrong=()=>beep(200,250), soundWin=()=>beep(1000,500), soundLose=()=>beep(150,500);
+
+/* ---------- GRID (fixed) ---------- */
+const gridData = [
+  ['A','Q','Y','L','E','X','T','X','Q','P'],
+  ['P','T','B','W','X','G','W','D','X','H'],
+  ['P','X','C','L','O','U','D','A','P','O'],
+  ['L','E','Y','Q','A','X','X','T','W','N'],
+  ['E','B','P','U','T','Z','Q','E','M','E'],
+  ['C','X','X','M','X','F','X','A','X','X'],
+  ['O','X','T','X','Y','X','X','X','X','X'],
+  ['D','T','L','I','X','Q','U','X','B','T'],
+  ['X','X','X','L','O','O','P','R','N','R'],
+  ['U','R','U','X','X','X','T','A','S','K']
+];
+
+/* ---------- FALLBACK QUESTION POOL (used if server fails) ---------- */
+const fallbackPool = [
+  {w:'apple',  q:'Name a fruit used in an old proverb about doctors.', c:"A fruit — think 'an ___ a day...'"},
+  {w:'cloud',  q:'White thing in the sky that sometimes brings rain.', c:'Soft white shape in the sky that may bring rain.'},
+  {w:'puzzle', q:'A brain teaser you try to solve.', c:'A brain-teasing game or problem to solve.'},
+  {w:'phone',  q:'Electronic device used to call people.', c:'Device used to call or message someone far away.'},
+  {w:'code',   q:'What developers write to instruct computers?', c:'Instructions written for computers to follow.'},
+  {w:'loop',   q:'Programming concept that repeats a block of code.', c:'Structure in programming that repeats steps.'},
+  {w:'data',   q:'Raw facts and figures computers store.', c:'Raw facts and figures stored by computers.'},
+  {w:'task',   q:'A piece of work to complete.', c:'A piece of work or duty to complete.'},
+  {w:'river',  q:'A natural flowing stream of water.', c:'A natural flowing stream of water.'},
+  {w:'matrix', q:'A grid of numbers (also famous sci-fi term).', c:'A grid of numbers, popular in sci-fi and math.'},
+  {w:'signal', q:'Bars that show network strength.', c:"Bars showing how strong your network connection is."},
+  {w:'looped', q:'Something that keeps repeating (past-tense).', c:'A repeat of steps, similar to loop.'}
+];
+
+/* ---------- STATE ---------- */
+let currentWords = []; // objects {w,q,c}
+let found = [];
+let attempts = 0;
+let totalFound = 0;
+let questionIndex = 0; // which question currently shown
+let gameRunning = false;
+let startTime = null, timerInterval = null;
+let wrongGuesses = 0;
+let wrongSinceQuestion = 0; // counts wrong guesses for current question
+let questionAutoTimer = null; const AUTO_Q_MS = 12000; // rotate question every 12s
+
+/* ---------- DOM ---------- */
+const gridEl = document.getElementById('grid');
+const questionTextEl = document.getElementById('questionText');
+const clueTextEl = document.getElementById('clueText');
+const clueBoxEl = document.getElementById('clueBox');
+const attemptsEl = document.getElementById('attempts');
+const timerEl = document.getElementById('timer');
+const msgEl = document.getElementById('msg');
+const guessInputEl = document.getElementById('guessInput');
+const guessBtnEl = document.getElementById('guessBtn');
+const nextClueBtnEl = document.getElementById('nextClueBtn');
+const difficultyEl = document.getElementById('difficulty');
+const playerNameEl = document.getElementById('playerName');
+const progressListEl = document.getElementById('progressList');
+const startBtnEl = document.getElementById('startBtn');
+const newGameBtnEl = document.getElementById('newGameBtn');
+const resetBoardBtnEl = document.getElementById('resetBoardBtn');
+const gameOverEl = document.getElementById('gameOver');
+const resultTitleEl = document.getElementById('resultTitle');
+const resultTextEl  = document.getElementById('resultText');
+const leaderboardEl = document.getElementById('leaderboardList');
+
+/* ---------- HELPERS ---------- */
+function renderGrid(){ gridEl.innerHTML=''; gridData.forEach(r=>{ const tr=document.createElement('tr'); r.forEach(ch=>{ const td=document.createElement('td'); td.textContent=ch; tr.appendChild(td);} ); gridEl.appendChild(tr);} ); }
+function formatTime(sec){ const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return `${m}:${s}`; }
+function startTimer(){ if(timerInterval) clearInterval(timerInterval); startTime=Date.now(); timerEl.textContent='00:00'; timerInterval=setInterval(()=>{ const elapsed=Math.floor((Date.now()-startTime)/1000); timerEl.textContent=formatTime(elapsed); },1000); }
+function stopTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval=null; }
+function shuffleArray(a){ const arr=a.slice(); for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+function nameHash(name){ let h=0; for(let i=0;i<name.length;i++) h=(h*31 + name.charCodeAt(i))>>>0; return h; }
+
+/* ---------- FETCH QUESTIONS (from server) ---------- */
+// The function attempts to fetch questions from an online endpoint. If fetch fails or times out,
+// it falls back to the local `fallbackPool`.
+async function fetchQuestionsForPlayer(playerName){
+  const endpoint = 'https://example.com/word-hunt-questions'; // <-- replace with your real endpoint
+  const url = `${endpoint}?player=${encodeURIComponent(playerName||'anon')}&t=${Date.now()}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 3500); // 3.5s timeout
+  try{
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if(!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    // Expecting an array of objects: [{w:'word', q:'question', c:'clue'}, ...]
+    if(Array.isArray(data) && data.length>0) return data;
+    throw new Error('bad payload');
+  }catch(err){
+    console.warn('Fetch failed, using fallback pool.', err);
+    // create a shuffled selection so different players still get different sets
+    const shuffled = shuffleArray(fallbackPool);
+    // deterministic rotate if player name provided, so each player gets different set
+    if(playerName && playerName.trim()){ const h=nameHash(playerName.trim()); const k = h % shuffled.length; return rotated(shuffled,k); }
+    return shuffled;
+  }
+}
+function rotated(arr,k){ k=((k%arr.length)+arr.length)%arr.length; return arr.slice(k).concat(arr.slice(0,k)); }
+
+/* ---------- GAME LOGIC ---------- */
+function chooseWordsFromPool(pool){ const chosen = pool.slice(0,8).map(x=>({w:x.w.toLowerCase(), q:x.q, c:x.c})); return chosen; }
+
+function updateQuestionDisplay(){
+  if(totalFound===currentWords.length){ questionTextEl.textContent = 'All questions answered! 🎉'; clueBoxEl.style.display='none'; return; }
+  // advance to first unanswered if needed
+  let tries=0; while(found[questionIndex] && tries<currentWords.length){ questionIndex=(questionIndex+1)%currentWords.length; tries++; }
+  const obj = currentWords[questionIndex];
+  questionTextEl.textContent = obj.q || 'Question unavailable.';
+  // show clue only after 3 wrong attempts on that question
+  if(wrongSinceQuestion >= 3){ clueTextEl.textContent = obj.c || '' ; clueBoxEl.style.display='block'; }
+  else { clueBoxEl.style.display='none'; }
+}
+
+function renderProgress(){ progressListEl.innerHTML=''; currentWords.forEach((o,i)=>{ const li=document.createElement('li'); li.innerHTML = found[i] ? `[${i+1}] ✅ ${o.w}` : `[${i+1}] ⏳ (not found yet)`; progressListEl.appendChild(li); }); }
+
+/* ---------- LEADERBOARD ---------- */
+const LB_KEY = 'wordHuntLeaderboard_v1';
+function loadLeaderboard(){ let arr=[]; try{ arr=JSON.parse(localStorage.getItem(LB_KEY))||[];}catch{arr=[];} arr.sort((a,b)=>{ if(b.score!==a.score) return b.score-a.score; return a.timeSec-b.timeSec; }); leaderboardEl.innerHTML=''; if(arr.length===0){ leaderboardEl.innerHTML='<p class="small">No games played yet.</p>'; return; } arr.slice(0,15).forEach((e,idx)=>{ const div=document.createElement('div'); div.className='lb-item'; div.innerHTML = `<div class='lb-header'>#${idx+1} ${e.name||'Anonymous'} — Score: ${e.score}</div><div>Status: ${e.status}, Diff: ${e.difficulty}, Words: ${e.totalFound}/8, Wrong: ${e.wrongGuesses}, Time: ${formatTime(e.timeSec)}</div><div class='small'>${e.timestamp}</div>`; leaderboardEl.appendChild(div); }); }
+function saveToLeaderboard(entry){ let arr=[]; try{ arr=JSON.parse(localStorage.getItem(LB_KEY))||[]; }catch{arr=[];} arr.push(entry); localStorage.setItem(LB_KEY, JSON.stringify(arr)); loadLeaderboard(); }
+
+/* ---------- SCORING ---------- */
+function calculateScore(status, elapsedSec){ const diff=difficultyEl.value; let diffMultiplier = diff==='easy'?1: diff==='medium'?1.5:2; const baseCorrect = totalFound*100; const penaltyWrong = wrongGuesses*10; const penaltyTime = Math.floor(elapsedSec/2); let score = baseCorrect - penaltyWrong - penaltyTime; if(status==='Lose') score -= 50; if(status==='Exit') score -= 20; score = Math.max(0, Math.round(score*diffMultiplier)); return score; }
+
+/* ---------- AUTO QUESTION ROTATION ---------- */
+function startAutoQuestionRotation(){ stopAutoQuestionRotation(); questionAutoTimer = setInterval(()=>{ if(!gameRunning) return; questionIndex = (questionIndex+1) % currentWords.length; wrongSinceQuestion = 0; updateQuestionDisplay(); }, AUTO_Q_MS); }
+function stopAutoQuestionRotation(){ if(questionAutoTimer) clearInterval(questionAutoTimer); questionAutoTimer=null; }
+
+/* ---------- FLOW ---------- */
+function resetUIForNewGame(){ msgEl.textContent=''; gameOverEl.style.display='none'; attemptsEl.textContent=attempts; renderProgress(); updateQuestionDisplay(); guessInputEl.value=''; guessInputEl.disabled=false; guessBtnEl.disabled=false; nextClueBtnEl.disabled=false; guessInputEl.focus(); }
+
+async function startNewGame(){ stopAutoQuestionRotation(); const diff = difficultyEl.value; attempts = diff==='easy'?9: diff==='medium'?7:5; totalFound=0; wrongGuesses=0; wrongSinceQuestion=0; questionIndex=0; gameRunning=true; // fetch pool
+  const playerName = (playerNameEl.value||'').trim(); const pool = await fetchQuestionsForPlayer(playerName); const chosen = chooseWordsFromPool(pool); currentWords = chosen; found = currentWords.map(()=>false); renderGrid(); resetUIForNewGame(); startTimer(); startAutoQuestionRotation(); }
+
+function handleGuess(){ if(!gameRunning) return; const val = guessInputEl.value.trim().toLowerCase(); if(!val) return; guessInputEl.value=''; if(val==='exit'){ endGame('Exit'); return; }
+  let correct=false; for(let i=0;i<currentWords.length;i++){ if(!found[i] && currentWords[i].w===val){ found[i]=true; totalFound++; correct=true; msgEl.textContent=`✅ Correct! You found: ${currentWords[i].w}`; soundCorrect(); renderProgress(); wrongSinceQuestion=0; updateQuestionDisplay(); break; } }
+  if(!correct){ attempts--; wrongGuesses++; wrongSinceQuestion++; attemptsEl.textContent=attempts; msgEl.textContent='❌ Wrong guess.'; soundWrong(); // reveal clue only after 3 fails
+    if(wrongSinceQuestion>=3){ updateQuestionDisplay(); }
+  }
+  if(totalFound===currentWords.length) endGame('Win'); else if(attempts<=0) endGame('Lose'); }
+
+function endGame(type){ if(!gameRunning) return; gameRunning=false; stopTimer(); stopAutoQuestionRotation(); guessInputEl.disabled=true; guessBtnEl.disabled=true; nextClueBtnEl.disabled=true; const elapsedSec = startTime? Math.floor((Date.now()-startTime)/1000) : 0; const timeStr = formatTime(elapsedSec); const status = type==='Win'?'Win': type==='Lose'?'Lose':'Exit'; const score = calculateScore(status, elapsedSec); let title='', text=''; if(type==='Win'){ title='🏆 YOU WON!'; text='You found all the words!\n'; soundWin(); } else if(type==='Lose'){ title='💀 GAME OVER'; text='You ran out of attempts.\n'; text += 'Words were: ' + currentWords.map(o=>o.w).join(', ') + '\n'; soundLose(); } else { title='⚪ GAME ENDED'; text='You exited the game.\n'; text += 'Words were: ' + currentWords.map(o=>o.w).join(', ') + '\n'; }
+  text += `\nDifficulty: ${difficultyEl.value}`; text += `\nWords found: ${totalFound}/${currentWords.length}`; text += `\nWrong guesses: ${wrongGuesses}`; text += `\nTime: ${timeStr}`; text += `\nScore: ${score}`;
+  resultTitleEl.textContent = title; resultTextEl.textContent = text; const card = document.getElementById('resultCard'); card.classList.remove('result-win','result-lose','result-exit'); if(type==='Win') card.classList.add('result-win'); else if(type==='Lose') card.classList.add('result-lose'); else card.classList.add('result-exit'); gameOverEl.style.display='block'; const entry = { name: (playerNameEl.value||'Anonymous').trim(), score, status, difficulty: difficultyEl.value, totalFound, wrongGuesses, timeSec: elapsedSec, timestamp: new Date().toLocaleString() }; saveToLeaderboard(entry); }
+
+/* ---------- EVENTS ---------- */
+startBtnEl.addEventListener('click', ()=>{ startNewGame(); });
+newGameBtnEl.addEventListener('click', ()=>{ startNewGame(); });
+guessBtnEl.addEventListener('click', handleGuess); guessInputEl.addEventListener('keydown',(e)=>{ if(e.key==='Enter') handleGuess(); });
+nextClueBtnEl.addEventListener('click', ()=>{ if(!gameRunning) return; questionIndex = (questionIndex+1)%currentWords.length; wrongSinceQuestion = 0; updateQuestionDisplay(); });
+resetBoardBtnEl.addEventListener('click', ()=>{ if(confirm('Clear leaderboard on this browser?')){ localStorage.removeItem(LB_KEY); loadLeaderboard(); } });
+
+/* ---------- INIT ---------- */
+renderGrid(); attemptsEl.textContent='-'; timerEl.textContent='00:00'; loadLeaderboard();
+
+</script>
+</body>
+</html>
